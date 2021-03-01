@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Snake!</title>
+
+    <style>
+        canvas {
+            display: block;
+            position: absolute;
+            border: 5px solid #000;
+            margin: auto;
+            top: 0;
+            bottom: 0;
+            right: 0;
+            left: 0;
+            z-index: 1;
+        }
+        #startbtn {
+            position: fixed;
+            top: 390px;
+            right:250px;
+            left: 790px;
+            z-index: 2;
+            background: transparent;
+            border: transparent;
+        }
+        #overbtn {
+            position: absolute;
+            top: 460px;
+            right:180px;
+            left: 930px;
+            width: 75px;
+            height: 70px;
+            z-index: 2;
+            background: transparent;
+        }
+        #homebtn {
+            position: absolute;
+            top: 460px;
+            right:180px;
+            left: 675px;
+            width: 75px;
+            height: 70px;
+            z-index: 2;
+            background: transparent;
+        }
+    </style>
+</head>
+<body>
+<canvas id="cvs" height="560" width="560" style="background-color: #fabd04; border: 7px  black solid"></canvas>
+<button id="startbtn"></button>
+<button id="overbtn"></button>
+<button id="homebtn"></button>
+<script>
+
+    /**
+     * Constante
+     */
+    const
+        COLS = 28,
+        ROWS = 28,
+
+        EMPTY = 0,
+        SNAKE = 1,
+        FRUIT = 2,
+
+        LEFT  = 0,
+        UP    = 1,
+        RIGHT = 2,
+        DOWN  = 3,
+
+        KEY_LEFT  = 37,
+        KEY_UP    = 38,
+        KEY_RIGHT = 39,
+        KEY_DOWN  = 40,
+
+        cvs = document.getElementById("cvs"),
+        ctx = cvs.getContext("2d"),
+
+        source_y = 155,
+        source_x = 202,
+        source_height = 202,
+        height = 200,
+        width = 230,
+        scaledWidth = 100,
+        scaledHeight = 100,
+
+        cycleLoop = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        cycleLoop_timer = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1],
+        source_x_timer = 81;
+
+    /**
+         * Game objects
+         */
+    var
+        canvas,
+        keystate,
+        frames,
+        paused = false,
+        game_over1 = false,
+        frame_counter = 50,
+        highscore = 0,
+        timed_points = 10,
+        startbtn = document.getElementById("startbtn"),
+        overbtn = document.getElementById("overbtn"),
+        homebtn = document.getElementById("homebtn"),
+        score,
+        frames_timer = 60;
+
+    let img = new Image(),
+        currentLoopIndex = 0,
+        frameCount = 0,
+        currentLoopIndex_timer = 0,
+        frameCount_timer = 0;
+
+    img.src = 'SpriteSheet_Snake.png';
+
+    /**
+     * Grid size is constant
+     */
+
+    grid = {
+
+        width: null,  /* the number of columns */
+        height: null, /* the number of rows */
+        _grid: null,  /* Array<any>, data representation */
+
+        /**
+         * c number of columns
+         * r number of rows
+         */
+        init: function(d, c, r) {
+            this.width = c;
+            this.height = r;
+
+            this._grid = [];
+            for (var x=0; x < c; x++) {
+                this._grid.push([]);
+                for (var y=0; y < r; y++) {
+                    this._grid[x].push(d);
+                }
+            }
+        },
+
+        /**
+         * Set the value of the grid cell at (x, y)
+         *
+         * the x-coordinate
+         * the y-coordinate
+         */
+        set: function(val, x, y) {
+            this._grid[x][y] = val;
+        },
+
+        get: function(x, y) {
+            return this._grid[x][y];
+        }
+    }
+    /**
+     * Drawing snake boxes for referance using fifo algoritm
+     */
+    snake = {
+
+        direction: null,
+        last: null,
+
+        init: function(d, x, y) {
+            this.direction = d;
+
+            this._queue = [];
+
+            this.insert(x, y);
+            this.insert(x, y);
+            this.insert(x, y);
+            this.insert(x, y);
+
+        },
+
+        insert: function(x, y) {
+            // unshift prepends an element to an array
+            this._queue.unshift({x:x, y:y});
+            this.last = this._queue[0];
+        },
+
+        /**
+         * Removes and returns the first element in the queue (fifo).
+         */
+        remove: function() {
+            // pop returns the last element of an array
+            return this._queue.pop();
+        }
+    };
+
+    function drawFrame(frameX) {
+        ctx.drawImage(img, source_x*frameX, source_y, source_x, source_height, width, height, scaledWidth, scaledHeight);
+    }
+
+    function step() {
+        drawFrame(cycleLoop[currentLoopIndex]);
+        frameCount++;
+        if (frameCount < 15) {
+            window.requestAnimationFrame(step);
+            return;
+        }
+        frameCount = 0;
+        currentLoopIndex++;
+        if (currentLoopIndex >= cycleLoop.length) {
+            currentLoopIndex = 0;
+        }
+        window.requestAnimationFrame(step);
+    }
+
+    function draw_timer(frameX) {
+        ctx.drawImage(img, source_x_timer*frameX, 560, 81, 87, 500, 500, 50, 50);
+    }
+
+    function animation_timer() {
+        if (paused === true){
+            stop();
+            return;
+        }
+        if (game_over1 === true){
+            return;
+        }
+        if (currentLoopIndex_timer === 9){
+            stop();
+        }
+        else {
+            draw_timer(cycleLoop_timer[currentLoopIndex_timer]);
+            frameCount_timer++;
+            if (frameCount_timer < frames_timer) {
+                window.requestAnimationFrame(animation_timer);
+                return;
+            }
+            draw_timer(cycleLoop_timer[currentLoopIndex_timer]);
+            frameCount_timer = 0;
+            currentLoopIndex_timer++;
+            if (currentLoopIndex_timer >= cycleLoop_timer.length) {
+                currentLoopIndex_timer = 0;
+            }
+            window.requestAnimationFrame(animation_timer);
+        }
+    }
+
+    /**
+     * Set a food id at a random free cell in the grid
+     */
+    function setFood() {
+        var empty = [];
+        // Find all empty cells by iterating through the cells
+        for (var x=0; x < grid.width; x++) {
+            for (var y=0; y < grid.height; y++) {
+                if (grid.get(x, y) === EMPTY) {
+                    empty.push({x:x, y:y});
+                }
+            }
+        }
+        // chooses a random cell
+        var randpos = empty[Math.round(Math.random()*(empty.length - 1))];
+        grid.set(FRUIT, randpos.x, randpos.y);
+    }
+
+    /**
+     * Timed points from 10
+     */
+
+    function incrementSeconds()
+    {
+        if (timed_points >= 2) {
+            timed_points -= 1;
+        }
+        if (timed_points < 2){
+            timed_points = 1;
+        }
+    }
+
+    /**
+     * Start button
+     */
+    function start_game() {
+        overbtn.style.display = 'none';
+        homebtn.style.display = 'none';
+        frame_counter = 5000;
+        main();
+        window.requestAnimationFrame(step);
+        clearInterval(interval);
+        startbtn.style.display = 'inline';
+        startbtn.innerHTML = '<img src="Buttons/color.png" alt="" width="80px" height="100px"/>';
+        document.getElementById('startbtn').onclick = function() {
+            startbtn.style.display = 'none';
+            frame_counter = 50;
+            main();
+            window.requestAnimationFrame(animation_timer);
+        }
+    }
+
+    function game_over_screen() {
+        ctx.drawImage(img, 0, 647, 856, 580, 80, 80, 400, 300);
+    }
+
+    /**
+     * Game over screen
+     */
+    function game_over() {
+        frame_counter = 8000;
+        clearInterval(interval);
+        currentLoopIndex_timer = 10;
+        window.requestAnimationFrame(game_over_screen);
+        overbtn.style.display = 'inline';
+        overbtn.innerHTML = '<img src="Buttons/ffbc00.png" alt="" width="10px" height="10px"/>';
+        document.getElementById('overbtn').onclick = function() {
+            overbtn.style.display = 'none';
+            homebtn.style.display = 'none';
+            frame_counter = 50;
+            game_over1 = false;
+            main();
+            window.requestAnimationFrame(animation_timer);
+        }
+        homebtn.style.display = 'inline';
+        homebtn.innerHTML = '<img src="Buttons/ff6000.png" alt="" width="10px" height="10px"/>';
+        document.getElementById('homebtn').onclick = function() {
+            overbtn.style.display = 'none';
+            homebtn.style.display = 'none';
+            game_over1 = false;
+            start_game();
+        }
+    }
+
+    function main() {
+        // create and initiate the canvas element
+        canvas = document.createElement("canvas");
+        canvas.width = COLS*20;
+        canvas.height = ROWS*20;
+        document.body.appendChild(canvas);
+        ctx.font = "23px Helvetica";
+
+        frames = 0;
+        keystate = {};
+        // checks for keyboard input
+        document.addEventListener("keydown", function(evt) {
+            keystate[evt.keyCode] = true;
+        });
+
+        document.addEventListener("keyup", function(evt) {
+            delete keystate[evt.keyCode];
+        });
+
+        interval = setInterval(incrementSeconds, 1000)
+
+        // initiate the game objects and starts the game loop
+        init();
+        loop();
+    }
+
+    /**
+     * Resets and inits game objects
+     */
+    function init() {
+        score = 0;
+
+        grid.init(EMPTY, COLS, ROWS);
+
+        var sp = {x:Math.floor(COLS/2), y:ROWS-1};
+        snake.init(UP, sp.x, sp.y);
+        grid.set(SNAKE, sp.x, sp.y);
+
+        setFood();
+    }
+
+    /**
+     * The game loop function, used for game updates and rendering
+     */
+    function loop() {
+        update();
+        draw();
+        if (!paused) {
+            update();
+        }
+        window.requestAnimationFrame(loop, canvas);
+    }
+
+    /**
+     * Updates the game and sets frames per second
+     */
+    function update() {
+        var nx_head = snake.last.x;
+        var ny_head = snake.last.y;
+
+        frames++;
+        // changing direction of the snake depending on which keys and make is impossible to go the opposite way
+        if (keystate[KEY_LEFT] && snake.direction !== RIGHT) {
+            snake.direction = LEFT;
+        }
+        if (keystate[KEY_UP] && snake.direction !== DOWN) {
+            snake.direction = UP;
+        }
+        if (keystate[KEY_RIGHT] && snake.direction !== LEFT) {
+            snake.direction = RIGHT;
+        }
+        if (keystate[KEY_DOWN] && snake.direction !== UP) {
+            snake.direction = DOWN;
+        }
+
+        // each five frames update the game state.
+        if (frames%frame_counter === 0) {
+            // pop the last element from the snake queue, the head
+            var nx = snake.last.x;
+            var ny = snake.last.y;
+
+            // Position of snake with a switch that loops through the direction of the snake
+            switch (snake.direction) {
+                case LEFT:
+                    nx--;
+                    break;
+                case UP:
+                    ny--;
+                    break;
+                case RIGHT:
+                    nx++;
+                    break;
+                case DOWN:
+                    ny++;
+                    break;
+            }
+
+            // Gameover conditions
+            if (0 > nx || nx > grid.width-1  || 0 > ny || ny > grid.height-1 || grid.get(nx, ny) === SNAKE
+            ) {
+                if (score>highscore){
+                    highscore = score;
+                }
+                timed_points = 10;
+                game_over1 = true;
+                window.requestAnimationFrame(game_over_screen);
+                game_over();
+            }
+
+            // Fruit collision
+            if (grid.get(nx, ny) === FRUIT) {
+                score+= timed_points;
+                timed_points = 10;
+                frame_counter -= 1;
+                currentLoopIndex_timer = 10;
+                setFood();
+            }
+            else
+                {
+                // Remove the first item of the snake queue, the tail
+                var tail = snake.remove();
+                grid.set(EMPTY, tail.x, tail.y);
+            }
+            // Add a snake id to the queue and append it to the array.
+            grid.set(SNAKE, nx, ny);
+            snake.insert(nx, ny);
+        }
+        // Definitely not the most optimal way to draw the snake with the sprite sheet.
+        // The way I wanted to do it was to append the image to the last position og the snake array, but I
+        // could not find a way to do it
+        if (snake.direction === LEFT) {
+            ctx.drawImage(img, 76, 0, 36, 36, nx_head*19, ny_head*19.75, grid.width, grid.height);
+        }
+        if (snake.direction === UP) {
+            ctx.drawImage(img, 0, 0, 36, 36, nx_head*19.65, ny_head*19.75, grid.width, grid.height);
+        }
+        else if (snake.direction === RIGHT) {
+            ctx.drawImage(img, 40, 0, 36, 36, nx_head*20.5, ny_head*19.6, grid.width, grid.height);
+        }
+        else if (snake.direction === DOWN) {
+            ctx.drawImage(img, 115, 0, 36, 36, nx_head*19.75, ny_head*20, grid.width, grid.height);
+        }
+    }
+
+    window.addEventListener('keydown', function (e) {
+        var key = e.keyCode;
+        if (key === 32)
+        {
+            togglePause();
+        }
+    });
+
+    function togglePause()
+    {
+        if (!paused)
+        {
+            clearInterval(interval);
+            frame_counter = 8000;
+            paused = true;
+        } else if (paused)
+        {
+            interval = setInterval(incrementSeconds, 1000);
+            frame_counter = 50;
+            paused= false;
+            window.requestAnimationFrame(animation_timer);
+        }
+    }
+
+    function draw_apple(nx,ny) {
+        ctx.drawImage(img, 0, 114, 38, 38, nx*19.9, ny*19.8, 25, 25);
+    }
+
+    /**
+     * Render the grid to the canvas.
+     */
+    function draw() {
+        var tw = canvas.width/grid.width;
+        var th = canvas.height/grid.height;
+        // iterate through the grid and draw the cells
+        for (var x=0; x < grid.width; x++) {
+            for (var y=0; y < grid.height; y++) {
+                // sets the fillstyle depending on the id of each cell
+                switch (grid.get(x, y)) {
+                    case FRUIT:
+                        //Delete "//" if you want to see the the apple`s collision block as well as the spritesheet generated apple
+                        //ctx.fillStyle = "#f00";
+                        break;
+                    case EMPTY:
+                        ctx.fillStyle = "#fabd04";
+                        break;
+                    case SNAKE:
+                        ctx.fillStyle = "#038423";
+                        break;
+                }
+                ctx.fillRect(x*tw, y*th, tw, th);
+
+                switch (grid.get(x, y)) {
+                    case FRUIT:
+                        draw_apple(x, y);
+                }
+            }
+        }
+
+        ctx.fillStyle = "#000";
+        if (game_over1 === false) {
+            ctx.fillText("SCORE: " + score, 10, canvas.height - 10);
+            ctx.fillText("HIGHSCORE: " + highscore, 12, canvas.height - 30);
+            //ctx.fillText(timed_points, 535, canvas.height - 10);
+
+            if (paused === true)
+            {
+                ctx.drawImage(img, 0, 357, 202, 202, 230, 200, 100, 100);
+            }
+            else if (paused === false)
+            {
+                ctx.fillText("PRESS SPACE TO PAUSE", 150, 25);
+            }
+        }
+
+        if (game_over1 === true){
+            ctx.font = "50px Helvetica";
+            ctx.drawImage(img, 0, 647, 856, 580, 80, 80, 400, 300);
+            ctx.fillText(score, 350, canvas.height-330);
+        }
+        else
+        {
+            ctx.font = "23px Helvetica";
+        }
+
+    }
+
+    img.addEventListener("load", start_game);
+    img.src = "SpriteSheet_Snake.png";
+
+    start_game();
+</script>
+</body>
+</html>
